@@ -1,0 +1,21 @@
+{
+    "name": "dotnet container",
+
+    "dockerComposeFile": [
+        "../docker-compose.yml"
+    ],
+
+    "service": "tccrawler",
+
+    "remoteUser": "docker",
+
+    "workspaceFolder": "/app",
+
+    "extensions": [
+        "ms-dotnettools.csharp",
+        "msjsdiag.debugger-for-chrome",
+        "editorconfig.editorconfig"
+    ],
+
+    "shutdownAction": "none"
+}
