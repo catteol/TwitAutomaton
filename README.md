@@ -1,4 +1,6 @@
 # TweetCollectionCrawler.NET
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TweetCollectionCrawler.NET?color=green)
+![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TweetCollectionCrawler.NET)
 任意のTwitter Collectionに追加されている画像を落とせるだけ落とすクローラーです
 
 ## 使い方
