@@ -41,6 +41,7 @@ namespace TCCrawler
         {
             public string Url { get; set; } = string.Empty;
             public string ScreenName { get; set; } = string.Empty;
+            public long TweetId { get; set; } = 0;
         }
 
         static async Task Main(string[] args)
@@ -104,7 +105,7 @@ namespace TCCrawler
                     {
                         foreach (var media in entry.Tweet.ExtendedEntities.Media)
                         {
-                            mediaUrls.Add(new TargetUrl() { Url = media.MediaUrlHttps, ScreenName = entry.Tweet.User.ScreenName });
+                            mediaUrls.Add(new TargetUrl() { Url = media.MediaUrlHttps, ScreenName = entry.Tweet.User.ScreenName, TweetId = entry.Tweet.Id });
                         }
                         executeSqls.Add($"INSERT INTO tweets VALUES({entry.Tweet.Id}, 'https://twitter.com/{entry.Tweet.User.ScreenName}/status/{entry.Tweet.Id}')");
                     }
@@ -131,7 +132,10 @@ namespace TCCrawler
 
         static async Task downloadImage(TargetUrl url, string savePath, Spinner spinner, HttpClient httpClient, int index, DateTime dt)
         {
-            string filePath = $"{savePath}/{url.ScreenName}_{index}_{Path.GetFileName(new Uri(url.Url).AbsolutePath)}";
+            // string filePath = $"{savePath}/{url.ScreenName}_{url.TimeStamp}_{index}_{Path.GetFileName(new Uri(url.Url).AbsolutePath)}";
+            // To get timestamp from ID, use:
+            // (entry.Tweet.Id >> 22) + (long)1288834974657
+            string filePath = $"{savePath}/{url.ScreenName}_{url.TweetId}_{index}{Path.GetExtension(new Uri(url.Url).AbsolutePath)}";
             if (File.Exists(filePath))
             {
                 spinner.Text = ($"Downloading {Path.GetFileName(filePath)}");
