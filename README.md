@@ -1,5 +1,5 @@
 # TweetCollectionCrawler.NET ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TweetCollectionCrawler.NET?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TweetCollectionCrawler.NET)  
-任意のTwitter Collectionに追加されている画像を落とせるだけ落とすクローラーです
+任意のTwitter Collectionに追加されている画像・動画を落とせるだけ落とすクローラーです
 
 ## 使い方
 Releaseページから各OS用のビルド済みファイルがダウンロードできます。`TCCrawler`（Windowsの場合は`TCCrawler.exe`）がプログラム本体です。  

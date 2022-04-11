@@ -40,6 +40,7 @@ namespace TCCrawler
         public class TargetUrl
         {
             public string Url { get; set; } = string.Empty;
+            public string Type { get; set; } = string.Empty;
             public string ScreenName { get; set; } = string.Empty;
             public long TweetId { get; set; } = 0;
         }
@@ -105,7 +106,30 @@ namespace TCCrawler
                     {
                         foreach (var media in entry.Tweet.ExtendedEntities.Media)
                         {
-                            mediaUrls.Add(new TargetUrl() { Url = media.MediaUrlHttps, ScreenName = entry.Tweet.User.ScreenName, TweetId = entry.Tweet.Id });
+                            // Video
+                            if (media.Type == "video")
+                            {
+                                // Get most high bitrate video's url
+                                string url = "";
+                                int maxBitrate = 0;
+                                foreach (var variant in media.VideoInfo.Variants)
+                                {
+                                    if (variant.Bitrate > maxBitrate)
+                                    {
+                                        url = variant.Url;
+                                        maxBitrate = variant.Bitrate ?? maxBitrate;
+                                    }
+                                }
+                                // Bitrate does not defined
+                                if (url == "") url = media.VideoInfo.Variants[0].Url;
+
+                                mediaUrls.Add(new TargetUrl() { Url = url, Type = media.Type, ScreenName = entry.Tweet.User.ScreenName, TweetId = entry.Tweet.Id });
+                            }
+                            else
+                            {
+                                // Image (or another type?)
+                                mediaUrls.Add(new TargetUrl() { Url = media.MediaUrlHttps, Type = media.Type, ScreenName = entry.Tweet.User.ScreenName, TweetId = entry.Tweet.Id });
+                            }
                         }
                         executeSqls.Add($"INSERT INTO tweets VALUES({entry.Tweet.Id}, 'https://twitter.com/{entry.Tweet.User.ScreenName}/status/{entry.Tweet.Id}')");
                     }
@@ -116,15 +140,24 @@ namespace TCCrawler
 
             await Spinner.StartAsync("Fetching image URLs...", async spinner =>
             {
-                CollectionEntriesPosition res = await getMediasWithCursorAsync();
-                while (res.WasTruncated)
+                try
                 {
-                    await Task.Delay(500);
-                    res = await getMediasWithCursorAsync(res);
-                    spinner.Text = "Fetching " + mediaUrls.Count + " URLs...";
+                    CollectionEntriesPosition res = await getMediasWithCursorAsync();
+                    while (res.WasTruncated)
+                    {
+                        await Task.Delay(500);
+                        res = await getMediasWithCursorAsync(res);
+                        spinner.Text = "Fetching " + mediaUrls.Count + " URLs...";
+                    }
+
+                    spinner.Succeed("Fetched " + mediaUrls.Count + " URLs.");
+                }
+                catch (System.Exception)
+                {
+                    spinner.Fail("Failed to get media URLs. Invalid collection's URL?");
+                    Environment.Exit(-1);
                 }
 
-                spinner.Succeed("Fetched " + mediaUrls.Count + " URLs.");
             });
 
             return (mediaUrls.ToArray(), executeSqls.ToArray());
@@ -142,7 +175,10 @@ namespace TCCrawler
                 return;
             }
 
-            using (var res = await httpClient.GetAsync(url.Url + ":orig", HttpCompletionOption.ResponseHeadersRead))
+            string httpTarget;
+            if (url.Type == "video") httpTarget = url.Url;
+            else httpTarget = url.Url + ":orig";
+            using (var res = await httpClient.GetAsync(httpTarget, HttpCompletionOption.ResponseHeadersRead))
             using (var fileStream = File.Create(filePath))
             using (var httpStream = await res.Content.ReadAsStreamAsync())
             {
