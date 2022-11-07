@@ -1,5 +1,4 @@
-﻿using System.IO;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CoreTweet;
 using Tweetinvi;
@@ -68,7 +67,8 @@ namespace TCCrawler
                         while (!reader.EndOfStream)
                         {
                             settings = JsonSerializer.Deserialize<Settings>(reader.ReadToEnd());
-                            if (settings.V1 == null || settings.V1.APIKey == "") {
+                            if (settings.V1 == null || settings.V1.APIKey == "")
+                            {
                                 settings.V1 = settings.V2;
                             }
                         }
@@ -90,7 +90,7 @@ namespace TCCrawler
                 DBController.ExecuteNoneQuery("CREATE TABLE IF NOT EXISTS tweets(id integer not null primary key, url text);");
 
                 long[] tweetIds = await getAllTweetIdsAsync(coreTokens, parsed.Value.CollectionID);
-                TweetMedia[] tweetMedias = await getAllMediaUrlsAsync(tweetIds, inviClient);
+                TweetMedia[] tweetMedias = await getAllMediaUrlsAsync(tweetIds, inviClient, coreTokens);
                 await downloadMediasAsync(tweetMedias, parsed.Value.SavePath);
 
                 // Update DB
@@ -176,75 +176,108 @@ namespace TCCrawler
             return (tweetIds.ToArray());
         }
 
-        static async Task<TweetMedia[]> getAllMediaUrlsAsync(long[] tweetIds, TwitterClient inviClient)
+        static async Task<TweetMedia[]> getAllMediaUrlsAsync(long[] tweetIds, TwitterClient inviClient, Tokens coreTokens)
         {
             List<TweetMedia> tweetMedias = new List<TweetMedia>();
 
             await Spinner.StartAsync("Fetching media URLs...", async spinner =>
             {
+                int mediaCounts = 0;
+
                 try
                 {
-                    var tweetResponses = await inviClient.TweetsV2.GetTweetsAsync(tweetIds);
+                    // For 100 request limit
+                    int chunkSize = 100;
+                    var chunks = tweetIds.Select((v, i) => new { v, i })
+                    .GroupBy(x => x.i / chunkSize)
+                    .Select(g => g.Select(x => x.v));
 
-                    foreach (var tweet in tweetResponses.Tweets)
+                    foreach (var Ids in chunks)
                     {
-                        List<string> mediaUrls = new List<string>();
+                        var tweetResponses = await inviClient.TweetsV2.GetTweetsAsync(Ids.ToArray());
 
-                        // Collect media URLs
-                        foreach (var mediaKey in tweet.Attachments.MediaKeys)
+                        foreach (var tweet in tweetResponses.Tweets)
                         {
-                            var medias = tweetResponses.Includes.Media.Where(m => m.MediaKey == mediaKey);
-                            if (medias.Count() != 1)
+                            List<string> mediaUrls = new List<string>();
+
+                            // Collect media URLs
+                            foreach (var mediaKey in tweet.Attachments.MediaKeys)
                             {
-                                throw new Exception("Linking mediakeys failed.");
+                                var media = new Tweetinvi.Models.V2.MediaV2();
+                                foreach (var m in tweetResponses.Includes.Media)
+                                {
+                                    if (m.MediaKey == mediaKey) media = m;
+                                }
+
+                                string url = "";
+                                switch (media.Type)
+                                {
+                                    case "animated_gif":
+                                        {
+                                            url = Path.ChangeExtension(
+                                                media.PreviewImageUrl.Replace("tweet_video_thumb", "tweet_video"), ".mp4"
+                                            );
+                                            break;
+                                        }
+
+                                    case "photo":
+                                        {
+                                            if (Path.GetExtension(media.Url).ToLower() == ".jpg") url = $"{media.Url}:orig";
+                                            else url = media.Url;
+                                            break;
+                                        }
+                                    case "video":
+                                        {
+                                            var showResponse = coreTokens.Statuses.Show(Convert.ToInt64(tweet.Id), null, null, true, true, CoreTweet.TweetMode.Extended);
+                                            foreach (var video in showResponse.ExtendedEntities.Media)
+                                            {
+                                                int highestBitrate = 0;
+                                                string videoUrl = "";
+                                                foreach (var variant in video.VideoInfo.Variants)
+                                                {
+                                                    if (variant.Bitrate > highestBitrate)
+                                                    {
+                                                        videoUrl = variant.Url;
+                                                        highestBitrate = variant.Bitrate ?? highestBitrate;
+                                                    }
+                                                }
+                                                url = videoUrl;
+                                            }
+                                            break;
+                                        }
+                                    default:
+                                        {
+                                            throw new Exception($"Unknown media type '{media.Type}'.");
+                                        }
+                                }
+
+                                if (url == "") Console.WriteLine($"Warning: An empty url detected. Skipped.\nType: {media.Type} Id: {tweet.Id}");
+                                else mediaUrls.Add(url);
                             }
 
-                            var media = medias.First();
-                            switch (media.Type)
+                            // Get author screen name
+                            var author = await inviClient.UsersV2.GetUserByIdAsync(tweet.AuthorId);
+
+                            tweetMedias.Add(new TweetMedia()
                             {
-                                case "animated_gif":
-                                    {
-                                        string url = Path.ChangeExtension(
-                                            media.PreviewImageUrl.Replace("tweet_video_thumb", "tweet_video"), ".mp4"
-                                        );
-                                        mediaUrls.Add(url);
-                                        break;
-                                    }
+                                TweetId = Convert.ToInt64(tweet.Id),
+                                UserName = author.User.Username,
+                                Medias = mediaUrls.ToArray()
+                            });
+                            mediaCounts += mediaUrls.Count();
 
-                                case "photo":
-                                    {
-                                        if (Path.GetExtension(media.Url).ToLower() == ".jpg") mediaUrls.Add($"{media.Url}:orig");
-                                        else mediaUrls.Add(media.Url);
-                                        break;
-                                    }
-
-                                default:
-                                    {
-                                        mediaUrls.Add(media.Url);
-                                        break;
-                                    }
-                            }
+                            spinner.Text = $"Fetching {mediaCounts} media URLs... ";
                         }
-
-                        // Get author screen name
-                        var author = await inviClient.UsersV2.GetUserByIdAsync(tweet.AuthorId);
-
-                        tweetMedias.Add(new TweetMedia()
-                        {
-                            TweetId = Convert.ToInt64(tweet.Id),
-                            UserName = author.User.Username,
-                            Medias = mediaUrls.ToArray()
-                        });
                     }
                 }
                 catch (System.Exception e)
                 {
-                    Console.WriteLine(e.Message);
+                    Console.WriteLine(e);
                     spinner.Fail($"Failed to fetch media URLs.");
                     Environment.Exit(-1);
                 }
 
-                spinner.Succeed($"Fetched {tweetMedias.Count()} media URLs.");
+                spinner.Succeed($"Fetched {mediaCounts} media URLs.");
             });
 
             return tweetMedias.ToArray();
