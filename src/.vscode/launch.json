@@ -9,16 +9,53 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/app.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TCCrawler.dll",
+            "args": [
+                "-i",
+                "1589371239012782081"
+            ],
+            "cwd": "${workspaceFolder}/",
             "console": "internalConsole",
-            "stopAtEntry": false
+            "stopAtEntry": false,
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": ".NET Core Launch (web)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TCCrawler.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/",
+            "stopAtEntry": false,
+            "internalConsoleOptions": "openOnSessionStart",
+            "launchBrowser": {
+                "enabled": true,
+                "args": "${auto-detect-url}",
+                "windows": {
+                    "command": "cmd.exe",
+                    "args": "/C start ${auto-detect-url}"
+                },
+                "osx": {
+                    "command": "open"
+                },
+                "linux": {
+                    "command": "xdg-open"
+                }
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:3000"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
         },
         {
             "name": ".NET Core Attach",
             "type": "coreclr",
-            "request": "attach"
+            "request": "attach",
+            "processId": "${command:pickProcess}"
         }
     ]
 }

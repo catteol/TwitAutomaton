@@ -10,9 +10,10 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.8.0" />
-    <PackageReference Include="CoreTweet" Version="1.0.0.483" />
+    <PackageReference Include="CoreTweet" Version="2.0.0-beta.1" />
     <PackageReference Include="Kurukuru" Version="1.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="6.0.2" />
+    <PackageReference Include="TweetinviAPI" Version="5.0.4" />
   </ItemGroup>
 
 </Project>
