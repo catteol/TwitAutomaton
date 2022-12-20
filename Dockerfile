@@ -1,5 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:6.0
 
+SHELL ["/bin/bash", "-c"]
+
 RUN mkdir /app
 WORKDIR /app
 
