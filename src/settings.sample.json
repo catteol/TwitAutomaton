@@ -10,5 +10,10 @@
         "APIKeySecret": "APIKeySecret",
         "AccessToken": "AccessToken",
         "AccessTokenSecret": "AccessTokenSecret"
+    },
+    "Client": {
+        "Authorization": "",
+        "Cookie": "",
+        "x-csrf-token": ""
     }
 }

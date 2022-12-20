@@ -23,7 +23,9 @@ namespace TCCrawler
     class Settings
     {
         public APIKeys? V1 { get; set; }
-        public APIKeys V2 { get; set; } = new APIKeys();
+        public APIKeys? V2 { get; set; }
+
+        public ClientHeaders? ClientHeaders { get; set; }
     }
 
     class APIKeys
@@ -32,6 +34,13 @@ namespace TCCrawler
         public string APIKeySecret { get; set; } = string.Empty;
         public string AccessToken { get; set; } = string.Empty;
         public string AccessTokenSecret { get; set; } = string.Empty;
+    }
+
+    class ClientHeaders
+    {
+        public string Authorization { get; set; } = string.Empty;
+        public string Cookie { get; set; } = string.Empty;
+        public string XCSRFToken { get; set; } = string.Empty;
     }
 
     class TweetMedia
@@ -57,6 +66,11 @@ namespace TCCrawler
             if (result.Tag == ParserResultType.Parsed)
             {
                 var parsed = result as Parsed<Options>;
+                if (parsed == null)
+                {
+                    throw new Exception("Failed to parse command arguments.");
+                }
+
                 Settings? settings = new Settings();
 
                 // Load settings json
@@ -66,7 +80,7 @@ namespace TCCrawler
                     {
                         while (!reader.EndOfStream)
                         {
-                            settings = JsonSerializer.Deserialize<Settings>(reader.ReadToEnd());
+                            settings = JsonSerializer.Deserialize<Settings>(reader.ReadToEnd()) ?? new Settings();
                             if (settings.V1 == null || settings.V1.APIKey == "")
                             {
                                 settings.V1 = settings.V2;
@@ -84,12 +98,14 @@ namespace TCCrawler
                 Directory.CreateDirectory(parsed.Value.SavePath);
 
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
-                Tokens coreTokens = Tokens.Create(settings.V1.APIKey, settings.V1.APIKeySecret, settings.V1.AccessToken, settings.V1.AccessTokenSecret);
-                TwitterClient inviClient = new TwitterClient(settings.V2.APIKey, settings.V2.APIKeySecret, settings.V2.AccessToken, settings.V2.AccessTokenSecret);
+                Tokens coreTokens = Tokens.Create(settings.V1?.APIKey, settings.V1?.APIKeySecret, settings.V1?.AccessToken, settings.V1?.AccessTokenSecret);
+                TwitterClient inviClient = new TwitterClient(settings.V2?.APIKey, settings.V2?.APIKeySecret, settings.V2?.AccessToken, settings.V2?.AccessTokenSecret);
+                if (settings.ClientHeaders != null)
+                Console.WriteLine("Found 'ClientHeaders' settings. Fetching tweets by HttpClient instead of V1 API Client.");
 
                 DBController.ExecuteNoneQuery("CREATE TABLE IF NOT EXISTS tweets(id integer not null primary key, url text);");
 
-                long[] tweetIds = await getAllTweetIdsAsync(coreTokens, parsed.Value.CollectionID);
+                long[] tweetIds = await getAllTweetIdsAsync(coreTokens, parsed.Value.CollectionID, settings.ClientHeaders);
                 TweetMedia[] tweetMedias = await getAllMediaUrlsAsync(tweetIds, inviClient, coreTokens);
                 await downloadMediasAsync(tweetMedias, parsed.Value.SavePath);
 
@@ -103,11 +119,11 @@ namespace TCCrawler
             }
             else
             {
-                // throw new Exception("Failed to parse command arguments.");
+                throw new Exception("Failed to parse command arguments.");
             }
         }
 
-        static async Task<long[]> getAllTweetIdsAsync(Tokens coreTokens, string collectionId)
+        static async Task<long[]> getAllTweetIdsAsync(Tokens coreTokens, string collectionId, ClientHeaders? clientHeaders)
         {
             List<long> tweetIds = new List<long>();
 
@@ -116,7 +132,10 @@ namespace TCCrawler
                 CollectionEntriesResult result;
 
                 // Collections API
-                if (pos == null) { result = await coreTokens.Collections.EntriesAsync($"custom-{collectionId}", 150, null, null, CoreTweet.TweetMode.Extended); }
+                if (pos == null)
+                {
+                    result = await coreTokens.Collections.EntriesAsync($"custom-{collectionId}", 150, null, null, CoreTweet.TweetMode.Extended);
+                }
                 else
                 {
                     result = await coreTokens.Collections.EntriesAsync($"custom-{collectionId}", 150, pos.MinPosition, null, CoreTweet.TweetMode.Extended);
@@ -150,15 +169,114 @@ namespace TCCrawler
                 return (result.Position);
             }
 
+            async Task<CollectionEntriesPosition> getIdsByClientAsync(ClientHeaders clientHeaders, CollectionEntriesPosition? pos = null)
+            {
+                System.Text.Json.Nodes.JsonArray result;
+                CollectionEntriesPosition position;
+
+                // Collections API
+                if (pos == null)
+                {
+                    System.Text.Json.Nodes.JsonNode? jsonNode;
+                    using (var client = new HttpClient())
+                    {
+                        client.DefaultRequestHeaders.Add("ContentType", "application/json;charset=utf-8");
+                        client.DefaultRequestHeaders.Add("Authorization", clientHeaders.Authorization);
+                        client.DefaultRequestHeaders.Add("Cookie", clientHeaders.Cookie);
+                        client.DefaultRequestHeaders.Add("x-csrf-token", clientHeaders.XCSRFToken);
+                        var res = await client.GetAsync($"https://twitter.com/i/api/1.1/collections/entries.json?tweet_mode=extended&count=150&id=custom-{collectionId}");
+                        if (res.StatusCode != HttpStatusCode.OK)
+                        {
+                            throw new Exception(message: $"{(int)res.StatusCode} {res.ReasonPhrase}");
+                        }
+                        var jsonString = await res.Content.ReadAsStringAsync();
+                        jsonNode = System.Text.Json.Nodes.JsonNode.Parse(jsonString);
+                    }
+
+                    result = jsonNode?["response"]?["timeline"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray();
+                    position = new CollectionEntriesPosition()
+                    {
+                        MaxPosition = long.Parse(jsonNode?["response"]?["position"]?["max_position"]?.ToString() ?? ""),
+                        MinPosition = long.Parse(jsonNode?["response"]?["position"]?["min_position"]?.ToString() ?? ""),
+                        WasTruncated = bool.Parse(jsonNode?["response"]?["position"]?["was_truncated"]?.ToString() ?? "")
+                    };
+                }
+                else
+                {
+                    System.Text.Json.Nodes.JsonNode? jsonNode;
+                    using (var client = new HttpClient())
+                    {
+                        client.DefaultRequestHeaders.Add("ContentType", "application/json;charset=utf-8");
+                        client.DefaultRequestHeaders.Add("Authorization", clientHeaders.Authorization);
+                        client.DefaultRequestHeaders.Add("Cookie", clientHeaders.Cookie);
+                        client.DefaultRequestHeaders.Add("x-csrf-token", clientHeaders.XCSRFToken);
+                        var res = await client.GetAsync($"https://twitter.com/i/api/1.1/collections/entries.json?tweet_mode=extended&count=150&max_position={pos.MinPosition}&id=custom-{collectionId}");
+                        if (res.StatusCode != HttpStatusCode.OK)
+                        {
+                            throw new Exception(message: $"{(int)res.StatusCode} {res.ReasonPhrase}");
+                        }
+                        var jsonString = await res.Content.ReadAsStringAsync();
+                        jsonNode = System.Text.Json.Nodes.JsonNode.Parse(jsonString);
+                    }
+
+                    result = jsonNode?["response"]?["timeline"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray();
+                    position = new CollectionEntriesPosition()
+                    {
+                        MaxPosition = long.Parse(jsonNode?["response"]?["position"]?["max_position"]?.ToString() ?? ""),
+                        MinPosition = long.Parse(jsonNode?["response"]?["position"]?["min_position"]?.ToString() ?? ""),
+                        WasTruncated = bool.Parse(jsonNode?["response"]?["position"]?["was_truncated"]?.ToString() ?? "")
+                    };
+                }
+
+                // Make saved tweets collection
+                List<object[]> sqlRes = DBController.ExecuteReader($"SELECT * FROM tweets");
+                List<long> savedIds = new List<long>();
+
+                sqlRes.ForEach(res =>
+                {
+                    savedIds.Add((long)res[0]);
+                });
+
+
+                foreach (var r in result)
+                {
+
+                    var id = long.Parse(r?["tweet"]?["id"]?.ToString() ?? "");
+                    // Exclude recorded tweet
+                    if (!savedIds.Contains(id))
+                    {
+                        tweetIds.Add(id);
+                    }
+                }
+
+                return (position);
+            }
+
             await Spinner.StartAsync("Fetching Tweets...", async spinner =>
             {
                 try
                 {
-                    CollectionEntriesPosition res = await getIdsWithCursorAsync();
+                    CollectionEntriesPosition res;
+                    if (clientHeaders != null)
+                    {
+                        res = await getIdsByClientAsync(clientHeaders);
+                    }
+                    else
+                    {
+                        res = await getIdsWithCursorAsync();
+                    }
+
                     while (res.WasTruncated)
                     {
                         await Task.Delay(500);
-                        res = await getIdsWithCursorAsync(res);
+                        if (clientHeaders != null)
+                        {
+                            res = await getIdsByClientAsync(clientHeaders, res);
+                        }
+                        else
+                        {
+                            res = await getIdsWithCursorAsync(res);
+                        }
                         spinner.Text = "Fetching " + tweetIds.Count + " Tweets...";
                     }
 
@@ -166,7 +284,7 @@ namespace TCCrawler
                 }
                 catch (System.Exception e)
                 {
-                    Console.WriteLine(e.Message);
+                    Console.WriteLine(e);
                     spinner.Fail("Failed to fetch tweet IDs.");
                     Environment.Exit(-1);
                 }
