@@ -1,16 +1,4 @@
 {
-    "V1": {
-        "APIKey": "",
-        "APIKeySecret": "",
-        "AccessToken": "",
-        "AccessTokenSecret": ""
-    },
-    "V2": {
-        "APIKey": "APIKey",
-        "APIKeySecret": "APIKeySecret",
-        "AccessToken": "AccessToken",
-        "AccessTokenSecret": "AccessTokenSecret"
-    },
     "Client": {
         "Authorization": "",
         "Cookie": "",
