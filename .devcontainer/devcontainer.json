@@ -1,21 +1,20 @@
 {
     "name": "dotnet container",
-
     "dockerComposeFile": [
         "../docker-compose.yml"
     ],
-
     "service": "tccrawler",
-
     "remoteUser": "docker",
-
     "workspaceFolder": "/app",
-
-    "extensions": [
-        "ms-dotnettools.csharp",
-        "msjsdiag.debugger-for-chrome",
-        "editorconfig.editorconfig"
-    ],
-
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-dotnettools.csharp",
+                "msjsdiag.debugger-for-chrome",
+                "editorconfig.editorconfig"
+            ]
+        }
+    },
+    "postCreateCommand": "dotnet restore",
     "shutdownAction": "none"
 }
