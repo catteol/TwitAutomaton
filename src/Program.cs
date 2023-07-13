@@ -23,6 +23,7 @@ namespace TCCrawler
   public class Settings
   {
     public ClientHeaders? ClientHeaders { get; set; }
+    public string? GraphQLInstance { get; set; }
   }
 
   public class ClientHeaders
@@ -98,7 +99,7 @@ namespace TCCrawler
         DBController.ExecuteNoneQuery("CREATE TABLE IF NOT EXISTS tweets(id integer not null primary key, url text);");
 
         long[] tweetIds = await FetchData.fetchAllTweetIdsAsync(httpClient, parsed.Value.CollectionID);
-        TweetMedia[] tweetMedias = await FetchData.fetchAllMediaUrlsAsync(httpClient, tweetIds);
+        TweetMedia[] tweetMedias = await FetchData.fetchAllMediaUrlsAsync(httpClient, settings.GraphQLInstance ?? "-Ls3CrSQNo2fRKH6i6Na1A", tweetIds);
         await Download.downloadMediasAsync(httpClient, tweetMedias, parsed.Value.SavePath);
 
         // Update DB

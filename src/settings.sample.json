@@ -1,7 +1,8 @@
 {
-    "Client": {
+    "ClientHeaders": {
         "Authorization": "",
         "Cookie": "",
         "XCSRFToken": ""
-    }
+    },
+    "GraphQLInstance": "-Ls3CrSQNo2fRKH6i6Na1A"
 }

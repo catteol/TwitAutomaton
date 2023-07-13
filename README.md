@@ -8,16 +8,13 @@ Releaseページから各OS用のビルド済みファイルがダウンロー�
 引数`-i`にコレクションのID(`https://twitter.com/hogehoge/timelines/1234567890123456789`の`1234567890123456789`部分)を渡すことで、指定したコレクション以下のメディアをダウンロードします。  
 その他に`-o`で出力先ディレクトリ(デフォルト`./fetched/`)、`-s`で設定ファイル(デフォルト`settings.json`)を指定できます。
 
-使用にはTwitter APIの`API Key`・`API Secret`・`Access Token`・`Access Secret`の発行が必要です。  
-コレクションの取得に`Twitter API Standard v1.1`、メディアの取得に`Twitter API v2`を使用しています。その為、双方のキー群か、アクセスレベルが`Elevated`な`Twitter API v2`のキー群が必要です。上記キー群はJSON設定ファイルに記述することで読み込まれます。  
-`settings.json`に適切なHTTPヘッダーを指定すると、`Twitter API Standard v1.1`が必要な部分をHttpClientにて行います。必要なヘッダーは以下のとおりです。
-- Authorization
-- Cookie
-- x-csrf-token
-
-上記トークンを使用したいアカウントでログイン済みのブラウザ等から取得し、JSON設定ファイルの`ClientHeaders`セクションに設定してください。
+以前は`Twitter API Standard v1.1`及び`Twitter API v2`Project等が必要でしたが、クソみたいな料金プランと制限への以降、v1.1APIの停止に伴い、APIを使用せずWebClientとしてGraphQLを叩くように変更しました。ブラウザからのリクエスト同様のヘッダーとクエリパラメータでGETリクエストを飛ばしています。  
+動作には`Authorization` `Cookie` `XCSRFToken`のHTTPヘッダーが必要となりますが、適当なブラウザの開発者ツールを使用して要求HTTPヘッダーから抜き出してください。  
+Headlessブラウザでログインから行う実装がベターなのかもしれませんが、面倒だったので要望があればやります。
 
 `TCCrawler -h`でヘルプが表示されるので詳しくはそちらを参照してください。
+
+Collectionもいつまで使えるか分かりませんね…
 
 
 ## 注意事項
