@@ -116,7 +116,7 @@ public class FetchData
 
     await Spinner.StartAsync("Fetching media URLs...", async spinner =>
     {
-      async Task<(TweetMedia tweetMedia, int sortIndex)> fetchMediaUrlsAsync(long tweetId, int sortIndex)
+      async Task<(TweetMedia tweetMedia, int sortIndex, RateLimitParams rateLimit)> fetchMediaUrlsAsync(long tweetId, int sortIndex)
       {
         var query = new Dictionary<string, string>()
         {
@@ -131,10 +131,14 @@ public class FetchData
         }
         var jsonString = await res.Content.ReadAsStringAsync();
         var data = System.Text.Json.Nodes.JsonNode.Parse(jsonString);
-        var status = data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?[0]?["content"]?["itemContent"]?["tweet_results"]?["result"]?["legacy"];
+        var status = data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?[0]?["content"]?["itemContent"]?["tweet_results"]?["result"]?["legacy"]
+        ?? data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?[0]?["content"]?["itemContent"]?["tweet_results"]?["result"]?["tweet"]?["legacy"];
+        if (status == null)
+          throw new Exception($"Unrecognized response structure at {tweetId}");
 
         // Collect media URLs
         List<string> mediaUrls = new List<string>();
+
         foreach (var media in status?["extended_entities"]?["media"]?.AsArray()!)
         {
           string url = "";
@@ -185,11 +189,44 @@ public class FetchData
           UserName = status?["user"]?["screen_name"]?.ToString()!,
           Medias = mediaUrls.ToArray()
         },
-        sortIndex);
+        sortIndex,
+        new RateLimitParams()
+        {
+          RateLimitRemaining = Int32.Parse(res.Headers.First(pair => string.Compare(pair.Key, @"x-rate-limit-remaining") == 0).Value.First()),
+          RateLimitReset = Int32.Parse(res.Headers.First(pair => string.Compare(pair.Key, @"x-rate-limit-reset") == 0).Value.First())
+        });
       }
 
-      var res = await Task.WhenAll(tweetIds.Select((tweetId, i) => fetchMediaUrlsAsync(tweetId, i)));
-      foreach (var t in res.OrderBy(t => t.sortIndex))
+      var index = 0;
+      var results = new List<(TweetMedia tweetMedia, int sortIndex, RateLimitParams rateLimit)>();
+
+      while (results.Count < tweetIds.Length)
+      {
+        // first request to get response headers
+        var firstRes = await fetchMediaUrlsAsync(tweetIds.Skip(results.Count).First(), index);
+        index++;
+        results.Add(firstRes);
+
+        var chunk = tweetIds.Skip(results.Count).Take(firstRes.rateLimit.RateLimitRemaining);
+        results.AddRange(await Task.WhenAll(chunk.Select((tweetId, n) => fetchMediaUrlsAsync(tweetId, (n + index)))));
+        index += chunk.Count();
+
+        if (results.Count < tweetIds.Length)
+        {
+          // wait for reset
+          var waitSec = results.Last().rateLimit.RateLimitReset - DateTimeOffset.Now.ToUnixTimeSeconds() + 5; //safe offset
+
+          var timer = 0;
+          while (timer <= waitSec)
+          {
+            spinner.Text = $"Fetched {mediaCounts} media URLs. Waiting {waitSec - timer}s for RateLimit Reset...";
+            Thread.Sleep(1000);
+            timer++;
+          }
+        }
+      }
+
+      foreach (var t in results.OrderBy(t => t.sortIndex))
       {
         tweetMedias.Add(t.tweetMedia);
       }

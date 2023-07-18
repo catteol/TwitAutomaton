@@ -46,6 +46,12 @@ namespace TCCrawler
     public string FilePath { get; set; } = string.Empty;
   }
 
+  public class RateLimitParams
+  {
+    public int RateLimitRemaining { get; set; }
+    public long RateLimitReset { get; set; }
+  }
+
   class Program
   {
     private static readonly HttpClient httpClient = new HttpClient(new HttpClientHandler { MaxConnectionsPerServer = 25 });
