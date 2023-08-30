@@ -1,5 +1,8 @@
-# TweetCollectionCrawler.NET ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TweetCollectionCrawler.NET?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TweetCollectionCrawler.NET)  
-任意のTwitter Collectionに追加されている画像・動画を落とせるだけ落とすクローラーです
+# TwitterAutomationTool  ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TwitterAutomationTool?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TwitterAutomationTool)  
+Twitter（現X）自動化ツールです。個人的な需要に応じて機能は拡充予定です。APIを使用せず使用者のアカウントを用いたWebクライアントとして動作するため、使用は自己責任でお願いします。
+
+## 機能
+- 指定したTwitter Collectionに追加されている画像・動画を落とせるだけ落とします。
 
 ## 使い方
 Releaseページから各OS用のビルド済みファイルがダウンロードできます。`TCCrawler`（Windowsの場合は`TCCrawler.exe`）がプログラム本体です。  
