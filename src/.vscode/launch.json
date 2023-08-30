@@ -9,7 +9,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/TCCrawler.dll",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitterAutomationTool.dll",
             "args": [
                 "-i",
                 "1668245420840034304" //"1604818441545736199"
@@ -24,7 +24,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/TCCrawler.dll",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitterAutomationTool.dll",
             "args": [],
             "cwd": "${workspaceFolder}/",
             "stopAtEntry": false,

@@ -5,7 +5,7 @@ Twitter（現X）自動化ツールです。個人的な需要に応じて機能
 - 指定したTwitter Collectionに追加されている画像・動画を落とせるだけ落とします。
 
 ## 使い方
-Releaseページから各OS用のビルド済みファイルがダウンロードできます。`TCCrawler`（Windowsの場合は`TCCrawler.exe`）がプログラム本体です。  
+Releaseページから各OS用のビルド済みファイルがダウンロードできます。`TwitterAutomationTool`（Windowsの場合は`TwitterAutomationTool.exe`）がプログラム本体です。  
 動作にはJSON設定ファイルが必要です。書式については`settings.sample.json`を参照してください。
 
 引数`-i`にコレクションのID(`https://twitter.com/hogehoge/timelines/1234567890123456789`の`1234567890123456789`部分)を渡すことで、指定したコレクション以下のメディアをダウンロードします。  
@@ -15,7 +15,7 @@ Releaseページから各OS用のビルド済みファイルがダウンロー�
 動作には`Authorization` `Cookie` `XCSRFToken`のHTTPヘッダーが必要となりますが、適当なブラウザの開発者ツールを使用して要求HTTPヘッダーから抜き出してください。  
 Headlessブラウザでログインから行う実装がベターなのかもしれませんが、面倒だったので要望があればやります。
 
-`TCCrawler -h`でヘルプが表示されるので詳しくはそちらを参照してください。
+`TwitterAutomationTool -h`でヘルプが表示されるので詳しくはそちらを参照してください。
 
 Collectionもいつまで使えるか分かりませんね…
 

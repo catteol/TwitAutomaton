@@ -1,7 +1,7 @@
 version: '3.4'
 
 services:
-  tccrawler:
+  dotnet:
     build: .
     tty: true
     volumes:

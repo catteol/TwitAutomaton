@@ -1,6 +1,6 @@
 using Kurukuru;
 
-namespace TCCrawler;
+namespace TwitterAutomationTool;
 
 public class Download
 {

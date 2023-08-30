@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using CoreTweet;
 using Kurukuru;
 
-namespace TCCrawler;
+namespace TwitterAutomationTool;
 
 public class FetchData
 {
@@ -20,7 +20,7 @@ public class FetchData
       if (pos == null)
       {
         System.Text.Json.Nodes.JsonNode? jsonNode;
-
+        
         var res = await httpClient.GetAsync($"https://twitter.com/i/api/1.1/collections/entries.json?tweet_mode=extended&count=150&id=custom-{collectionId}");
         if (res.StatusCode != HttpStatusCode.OK)
         {
@@ -127,57 +127,71 @@ public class FetchData
         var res = await httpClient.GetAsync(QueryHelpers.AddQueryString($"https://twitter.com/i/api/graphql/{graphQLInstance}/TweetDetail", query));
         if (res.StatusCode != HttpStatusCode.OK)
         {
-          throw new Exception($"Statuses API returns {(int)res.StatusCode} {res.ReasonPhrase} at {tweetId}.");
+          if (res.StatusCode == HttpStatusCode.TooManyRequests)
+            throw new Exception($"Statuses API returns {(int)res.StatusCode} {res.ReasonPhrase} at {tweetId}. Rate Limit will be reset at {DateTimeOffset.FromUnixTimeSeconds(Int32.Parse(res.Headers.First(pair => string.Compare(pair.Key, @"x-rate-limit-reset") == 0).Value.First())).LocalDateTime}");
+          else
+            throw new Exception($"Statuses API returns {(int)res.StatusCode} {res.ReasonPhrase} at {tweetId}.");
         }
         var jsonString = await res.Content.ReadAsStringAsync();
         var data = System.Text.Json.Nodes.JsonNode.Parse(jsonString);
-        var status = data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?[0]?["content"]?["itemContent"]?["tweet_results"]?["result"]?["legacy"]
-        ?? data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?[0]?["content"]?["itemContent"]?["tweet_results"]?["result"]?["tweet"]?["legacy"];
+        var entry = data?["data"]?["threaded_conversation_with_injections_v2"]?["instructions"]?[0]?["entries"]?.AsArray().Where(e => e?["entryId"]?.ToString() == $"tweet-{tweetId}").First();
+        var status = entry?["content"]?["itemContent"]?["tweet_results"]?["result"]?["legacy"]
+        ?? entry?["content"]?["itemContent"]?["tweet_results"]?["result"]?["tweet"]?["legacy"];
         if (status == null)
           throw new Exception($"Unrecognized response structure at {tweetId}");
 
         // Collect media URLs
         List<string> mediaUrls = new List<string>();
 
-        foreach (var media in status?["extended_entities"]?["media"]?.AsArray()!)
+        try
         {
-          string url = "";
-          switch (media?["type"]?.ToString())
+          foreach (var media in status?["extended_entities"]?["media"]?.AsArray()!)
           {
-            case "photo":
-              {
-                if (Path.GetExtension(media?["media_url_https"]?.ToString()!).ToLower() == ".jpg")
-                  url = $"{media?["media_url_https"]}:orig";
-                else
-                  url = media?["media_url_https"]?.ToString()!;
-                break;
-              }
-            case "animated_gif":
-            case "video":
-              {
-                int? highestBitrate = -1;
-                string videoUrl = "";
-                foreach (var variant in media?["video_info"]?["variants"]?.AsArray()!)
+            string url = "";
+            switch (media?["type"]?.ToString())
+            {
+              case "photo":
                 {
-                  var bitrate = Int32.Parse(variant?["bitrate"]?.ToString() ?? "-1");
-                  if (bitrate > highestBitrate)
-                  {
-                    videoUrl = variant?["url"]?.ToString()!;
-                    highestBitrate = bitrate;
-                  }
+                  if (Path.GetExtension(media?["media_url_https"]?.ToString()!).ToLower() == ".jpg")
+                    url = $"{media?["media_url_https"]}:orig";
+                  else
+                    url = media?["media_url_https"]?.ToString()!;
+                  break;
                 }
-                url = videoUrl;
-                break;
-              }
-            default:
-              {
-                throw new Exception($"Unknown media type '{media?["type"]}'.");
-              }
-          }
+              case "animated_gif":
+              case "video":
+                {
+                  int? highestBitrate = -1;
+                  string videoUrl = "";
+                  foreach (var variant in media?["video_info"]?["variants"]?.AsArray()!)
+                  {
+                    var bitrate = Int32.Parse(variant?["bitrate"]?.ToString() ?? "-1");
+                    if (bitrate > highestBitrate)
+                    {
+                      videoUrl = variant?["url"]?.ToString()!;
+                      highestBitrate = bitrate;
+                    }
+                  }
+                  url = videoUrl;
+                  break;
+                }
+              default:
+                {
+                  throw new Exception($"Unknown media type '{media?["type"]}'.");
+                }
+            }
 
-          if (url == "")
-            throw new Exception($"Undefined media url at {tweetId}");
-          mediaUrls.Add(url);
+            if (url == "")
+              throw new Exception($"Undefined media url at {tweetId}");
+            mediaUrls.Add(url);
+          }
+        }
+        catch (System.NullReferenceException)
+        {
+          throw new Exception($"NullReferenceException at {tweetId}\n{data?.ToJsonString()}");
+        }
+        catch {
+          throw new Exception($"Unrecognized response structure at {tweetId}");
         }
 
         mediaCounts += mediaUrls.Count();

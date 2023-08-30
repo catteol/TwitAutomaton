@@ -1,12 +1,9 @@
 ﻿using System.Text;
 using System.Text.Json;
-using CoreTweet;
-using Tweetinvi;
 using System.Net;
-using Kurukuru;
 using CommandLine;
 
-namespace TCCrawler
+namespace TwitterAutomationTool
 {
   class Options
   {

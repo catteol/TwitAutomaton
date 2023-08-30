@@ -3,7 +3,7 @@
     "dockerComposeFile": [
         "../docker-compose.yml"
     ],
-    "service": "tccrawler",
+    "service": "dotnet",
     "remoteUser": "docker",
     "workspaceFolder": "/app",
     "customizations": {
