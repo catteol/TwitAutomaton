@@ -1,4 +1,4 @@
-# TwitterAutomationTool  ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TwitterAutomationTool?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TwitterAutomationTool)  
+# TwitAutomaton  ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TwitAutomaton?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TwitAutomaton)  
 Twitter（現X）自動化ツールです。個人的な需要に応じて機能は拡充予定です。APIを使用せず使用者のアカウントを用いたWebクライアントとして動作するため、使用は自己責任でお願いします。
 
 ## 機能
