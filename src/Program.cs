@@ -1,16 +1,17 @@
 ﻿using System.Text;
 using System.Text.Json;
 using System.Net;
+using System.CommandLine;
 using CommandLine;
 
-namespace TwitterAutomationTool
+namespace TwitAutomaton
 {
   class Options
   {
     [Option('s', "settings", Required = false, HelpText = "Settings JSON file path. Default is './settings.json'.")]
     public string SettingsFilePath { get; set; } = "./settings.json";
 
-    [Option('i', "id", Required = true, HelpText = "Twitter Collection ID. Only ID digits, no need 'custom-'.")]
+    [Option('i', "id", Required = false, HelpText = "Twitter Collection ID. Only ID digits, no need 'custom-'.")]
     public string CollectionID { get; set; } = string.Empty;
 
     [Option('o', "out", Required = false, HelpText = "Directory path to save images. Default is './fetched/'.")]
@@ -20,7 +21,6 @@ namespace TwitterAutomationTool
   public class Settings
   {
     public ClientHeaders? ClientHeaders { get; set; }
-    public string? GraphQLInstance { get; set; }
   }
 
   public class ClientHeaders
@@ -53,70 +53,234 @@ namespace TwitterAutomationTool
   {
     private static readonly HttpClient httpClient = new HttpClient(new HttpClientHandler { MaxConnectionsPerServer = 25 });
 
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
       Console.OutputEncoding = Encoding.UTF8;
+      ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
 
-      var result = (ParserResult<Options>)Parser.Default.ParseArguments<Options>(args);
-      if (result.Tag == ParserResultType.Parsed)
+      // Parse options
+      var rootCommand = new RootCommand("Twitter Automation Tool");
+
+      // Global option
+      var settingOption = new Option<string>("--settings", "A path to the specific settings JSON file. The default value is \"./settings.json\".");
+      settingOption.SetDefaultValue("./settings.json");
+      rootCommand.AddGlobalOption(settingOption);
+
+      // Collection subcommand
+      var collectionCommand = new Command("collection", "Commands about collections.");
+      rootCommand.Add(collectionCommand);
+
+      var collectionSaveCommand = new Command("save", "Save medias from collections to local filesystem.");
+      var collectionSaveIdsOption = new Option<string[]>("--id", "Collection ID without \"custom-\" prefix. Supports multiple IDs.") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+      collectionSaveIdsOption.AddAlias("-i");
+      collectionSaveCommand.AddOption(collectionSaveIdsOption);
+
+      var collectionSaveDestOption = new Option<string>("--dest", "A destination path to save medias. The default value is \"./fetched/\".");
+      collectionSaveDestOption.AddAlias("-d");
+      collectionSaveDestOption.SetDefaultValue("./fetched/");
+      collectionSaveCommand.AddOption(collectionSaveDestOption);
+
+      collectionCommand.Add(collectionSaveCommand);
+
+      // Tweet subcommand
+      var tweetCommand = new Command("tweet", "Commands about tweets.");
+      rootCommand.Add(tweetCommand);
+
+      var tweetDeleteCommand = new Command("delete", "Remove tweets. You can filter tweets for deletion.\nIf you want to use optional values as local time, please specify the timezone like: 2023/01/23 04:56:07 +09:00");
+
+      var tweetDeleteCountOption = new Option<string>("--count", "Count of tweets to delete from latest fave.");
+      tweetDeleteCountOption.AddAlias("-c");
+      tweetDeleteCommand.AddOption(tweetDeleteCountOption);
+
+      var tweetDeleteUntilOption = new Option<string>("--until", "Add filter that targets before the specified date.");
+      tweetDeleteUntilOption.AddAlias("-u");
+      tweetDeleteCommand.AddOption(tweetDeleteUntilOption);
+
+      var tweetDeleteSinceOption = new Option<string>("--since", "Add filter that targets after the specified date.");
+      tweetDeleteSinceOption.AddAlias("-s");
+      tweetDeleteCommand.AddOption(tweetDeleteSinceOption);
+
+      var tweetDeleteKeywordsOption = new Option<string[]>("--Keywords", "Add filter that targets including the specified keyword(s). Supports multiple keywords(OR search).") { AllowMultipleArgumentsPerToken = true };
+      tweetDeleteKeywordsOption.AddAlias("-k");
+      tweetDeleteCommand.AddOption(tweetDeleteKeywordsOption);
+
+      tweetCommand.Add(tweetDeleteCommand);
+
+      // Fave subcommand
+      var faveCommand = new Command("fave", "Commands about faves.");
+      rootCommand.Add(faveCommand);
+
+      var faveDeleteCommand = new Command("delete", "Remove tweets. You can filter tweets for deletion.");
+
+      var faveDeleteCountOption = new Option<string>("--count", "Count of faves to delete from latest fave.");
+      faveDeleteCountOption.AddAlias("-c");
+      faveDeleteCommand.AddOption(faveDeleteCountOption);
+
+      var faveDeleteFromOption = new Option<string[]>("--from", "Specify tweet author's user name which want to remove from faves. Supports multiple user name(s).") { AllowMultipleArgumentsPerToken = true };
+      faveDeleteFromOption.AddAlias("-f");
+      faveDeleteCommand.AddOption(faveDeleteFromOption);
+
+      faveCommand.Add(faveDeleteCommand);
+
+
+      // collection save
+      collectionSaveCommand.SetHandler(async (collectionIds, destPath, settingsPath) =>
+            {
+              var settings = Initialize(settingsPath);
+
+              // Create dest directory
+              Directory.CreateDirectory(destPath);
+
+              // Init DB
+              DBController.ExecuteNoneQuery("CREATE TABLE IF NOT EXISTS tweets(id integer not null primary key, url text);");
+
+              foreach (var (collectionId, index) in collectionIds.Select((collectionId, index) => (collectionId, index)))
+              {
+                Console.WriteLine($"Processing {collectionId}... [{index + 1}/{collectionIds.Count()}]");
+
+                long[] tweetIds = await FetchData.FetchAllTweetIdsAsync(httpClient, collectionId.ToString());
+                TweetMedia[] tweetMedias = await FetchData.FetchAllMediaUrlsAsync(httpClient, tweetIds);
+                await Download.downloadMediasAsync(httpClient, tweetMedias, destPath);
+
+                // Update DB
+                var sqlQueries = new List<string>();
+                foreach (var tweetMedia in tweetMedias)
+                {
+                  sqlQueries.Add($"INSERT INTO tweets VALUES({tweetMedia.TweetId}, 'https://twitter.com/{tweetMedia.UserName}/status/{tweetMedia.TweetId}')");
+                }
+                DBController.ExecuteNoneQueryWithTransaction(sqlQueries.ToArray());
+              }
+            },
+            collectionSaveIdsOption, collectionSaveDestOption, settingOption);
+
+      // tweet remove
+      tweetDeleteCommand.SetHandler(async (count, until, since, keywords, settingsPath) =>
       {
-        var parsed = result as Parsed<Options>;
-        if (parsed == null)
-        {
-          throw new Exception("Failed to parse command arguments.");
-        }
+        var settings = Initialize(settingsPath);
 
-        Settings? settings = new Settings();
+        // Parse count
+        int? parsedCount = null;
+        if (count != null)
+          parsedCount = int.Parse(count);
 
-        // Load settings json
+        // Parse date
+        DateTimeOffset? untilDate = null, sinceDate = null;
         try
         {
-          using (StreamReader reader = File.OpenText(parsed.Value.SettingsFilePath))
+          if (until != null)
           {
-            while (!reader.EndOfStream)
+            untilDate = DateTimeOffset.Parse(until);
+            if (untilDate?.Offset.Ticks > 0)
             {
-              settings = JsonSerializer.Deserialize<Settings>(reader.ReadToEnd()) ?? new Settings();
+              Console.ForegroundColor = ConsoleColor.Yellow;
+              Console.WriteLine("Warn: Given \"until\" value will use as UTC. If you want use it as local time, type \"TwitAutomaton fave delete -h\" to show examples.");
+              Console.ResetColor();
             }
           }
-
-          if (settings.ClientHeaders == null)
-            throw new Exception("Failed to load 'ClientHeaders' settings.");
+          if (since != null)
+          {
+            sinceDate = DateTimeOffset.Parse(since);
+            if (sinceDate?.Offset.Ticks > 0)
+            {
+              Console.ForegroundColor = ConsoleColor.Yellow;
+              Console.WriteLine("Warn: Given \"since\" value will use as UTC. If you want use it as local time, type \"TwitAutomaton fave delete -h\" to show examples.");
+              Console.ResetColor();
+            }
+          }
+          if (untilDate != null && sinceDate != null && untilDate < sinceDate)
+            throw new Exception("Invalid date range. Check your inputs.");
         }
-        catch (System.Exception e)
+        catch (Exception)
         {
-          Console.WriteLine(e);
-          throw new Exception("Failed to load settings.");
+          throw;
         }
 
-        // Configure httpclient
-        httpClient.DefaultRequestHeaders.Add("ContentType", "application/json;charset=utf-8");
-        httpClient.DefaultRequestHeaders.Add("Authorization", settings.ClientHeaders.Authorization);
-        httpClient.DefaultRequestHeaders.Add("Cookie", settings.ClientHeaders.Cookie);
-        httpClient.DefaultRequestHeaders.Add("x-csrf-token", settings.ClientHeaders.XCSRFToken);
+        await FetchData.RemoveTweets(httpClient, parsedCount, untilDate, sinceDate, keywords);
 
-        // Create dest directory
-        Directory.CreateDirectory(parsed.Value.SavePath);
+      },
+      tweetDeleteCountOption, tweetDeleteUntilOption, tweetDeleteSinceOption, tweetDeleteKeywordsOption, settingOption);
 
-        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
-
-        DBController.ExecuteNoneQuery("CREATE TABLE IF NOT EXISTS tweets(id integer not null primary key, url text);");
-
-        long[] tweetIds = await FetchData.fetchAllTweetIdsAsync(httpClient, parsed.Value.CollectionID);
-        TweetMedia[] tweetMedias = await FetchData.fetchAllMediaUrlsAsync(httpClient, settings.GraphQLInstance ?? "-Ls3CrSQNo2fRKH6i6Na1A", tweetIds);
-        await Download.downloadMediasAsync(httpClient, tweetMedias, parsed.Value.SavePath);
-
-        // Update DB
-        var sqlQueries = new List<string>();
-        foreach (var tweetMedia in tweetMedias)
-        {
-          sqlQueries.Add($"INSERT INTO tweets VALUES({tweetMedia.TweetId}, 'https://twitter.com/{tweetMedia.UserName}/status/{tweetMedia.TweetId}')");
-        }
-        DBController.ExecuteNoneQueryWithTransaction(sqlQueries.ToArray());
-      }
-      else
+      // fave remove
+      faveDeleteCommand.SetHandler(async (count, from, settingsPath) =>
       {
-        throw new Exception("Failed to parse command arguments.");
+        var settings = Initialize(settingsPath);
+
+        // Parse count
+        int? parsedCount = null;
+        if (count != null)
+          parsedCount = int.Parse(count);
+
+        // DateTimeOffset? untilDate = null, sinceDate = null;
+
+        // try
+        // {
+        //   if (until != null)
+        //   {
+        //     untilDate = DateTimeOffset.Parse(until);
+        //     if (untilDate?.Offset.Ticks > 0)
+        //     {
+        //       Console.ForegroundColor = ConsoleColor.Yellow;
+        //       Console.WriteLine("Warn: Given \"until\" value will use as UTC. If you want use it as local time, type \"TwitAutomaton fave delete -h\" to show examples.");
+        //       Console.ResetColor();
+        //     }
+        //   }
+        //   if (since != null)
+        //   {
+        //     sinceDate = DateTimeOffset.Parse(since);
+        //     if (sinceDate?.Offset.Ticks > 0)
+        //     {
+        //       Console.ForegroundColor = ConsoleColor.Yellow;
+        //       Console.WriteLine("Warn: Given \"since\" value will use as UTC. If you want use it as local time, type \"TwitAutomaton fave delete -h\" to show examples.");
+        //       Console.ResetColor();
+        //     }
+        //   }
+        //   if (untilDate != null && sinceDate != null && untilDate < sinceDate)
+        //     throw new Exception("Invalid date range. Check your inputs.");
+        // }
+        // catch (Exception)
+        // {
+        //   throw;
+        // }
+
+        await FetchData.RemoveFaves(httpClient, parsedCount, from.Length > 0 ? from : null);
+
+      },
+      faveDeleteCountOption, faveDeleteFromOption, settingOption);
+
+      return await rootCommand.InvokeAsync(args);
+    }
+
+    static Settings Initialize(string settingPath)
+    {
+      Settings? settings = new();
+
+      // Load settings json
+      try
+      {
+        using (StreamReader reader = File.OpenText(settingPath))
+        {
+          while (!reader.EndOfStream)
+          {
+            settings = JsonSerializer.Deserialize<Settings>(reader.ReadToEnd()) ?? new Settings();
+          }
+        }
+
+        if (settings.ClientHeaders == null)
+          throw new Exception("Failed to load 'ClientHeaders' settings.");
       }
+      catch (Exception e)
+      {
+        Console.WriteLine(e);
+        throw new Exception("Failed to load settings.");
+      }
+
+      // Configure httpclient
+      httpClient.DefaultRequestHeaders.Add("ContentType", "application/json;charset=utf-8");
+      httpClient.DefaultRequestHeaders.Add("Authorization", settings.ClientHeaders.Authorization);
+      httpClient.DefaultRequestHeaders.Add("Cookie", settings.ClientHeaders.Cookie);
+      httpClient.DefaultRequestHeaders.Add("x-csrf-token", settings.ClientHeaders.XCSRFToken);
+
+      return settings;
     }
   }
 }

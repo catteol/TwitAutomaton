@@ -1,6 +1,6 @@
 using Kurukuru;
 
-namespace TwitterAutomationTool;
+namespace TwitAutomaton;
 
 public class Download
 {

@@ -9,10 +9,18 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitterAutomationTool.dll",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitAutomaton.dll",
+            // "args": [
+            //     "collection",
+            //     "save",
+            //     "-i",
+            //     "1668245420840034304", //Dev; "1604818441545736199" Default
+            // ],
             "args": [
-                "-i",
-                "1668245420840034304" //"1604818441545736199"
+                "fave",
+                "delete",
+                "-c",
+                "1"
             ],
             "cwd": "${workspaceFolder}/",
             "console": "internalConsole",
@@ -24,7 +32,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitterAutomationTool.dll",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/TwitAutomaton.dll",
             "args": [],
             "cwd": "${workspaceFolder}/",
             "stopAtEntry": false,

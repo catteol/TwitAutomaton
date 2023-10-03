@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace TwitterAutomationTool
+namespace TwitAutomaton
 {
     class DBController
     {
