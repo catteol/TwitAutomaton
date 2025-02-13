@@ -1,3 +1,6 @@
+# Notice
+メイン機能が依存しているTwitter Collection APIが2月上旬に無効化されたようなので、アーカイブします。今後の更新・サポートなど全てのアクティビティを停止しますので、ご了承ください。
+
 # TwitAutomaton  ![GitHub release (latest by date)](https://img.shields.io/github/v/release/rexent-gx/TwitAutomaton?color=green) ![GitHub Release Date](https://img.shields.io/github/release-date/rexent-gx/TwitAutomaton)  
 Twitter（現X）自動化ツールです。個人的な需要に応じて機能は拡充予定です。APIを使用せず使用者のアカウントを用いたWebクライアントとして動作するため、使用は自己責任でお願いします。
 
